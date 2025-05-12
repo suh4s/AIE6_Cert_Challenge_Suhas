@@ -52,15 +52,11 @@ USER user
 # Run data download script to initialize data sources
 RUN python download_data.py
 
-# Install the dependencies
-# RUN uv sync --frozen
-RUN uv sync
-
 # Create config for HF Spaces
-RUN echo "sdk_version: 3\ntitle: InsightFlow AI\ndescription: Multi-perspective research assistant with visualization capabilities\napp_port: 7860" > $HOME/app/.hf/settings.yaml
+RUN mkdir -p $HOME/app/.hf && echo "sdk_version: 3\ntitle: InsightFlow AI\ndescription: Multi-perspective research assistant with visualization capabilities\napp_port: 7860" > $HOME/app/.hf/settings.yaml
 
 # Expose Hugging Face Spaces port
 EXPOSE 7860
 
 # Run the app
-CMD ["uv", "run", "chainlit", "run", "app.py", "--host", "0.0.0.0", "--port", "7860"]
+CMD ["chainlit", "run", "app.py", "--host", "0.0.0.0", "--port", "7860"]
