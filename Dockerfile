@@ -20,13 +20,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Set working directory
 WORKDIR $HOME/app
 
-# Copy requirements from pyproject.toml
-COPY --chown=user pyproject.toml .
-COPY --chown=user setup.cfg .
+# Copy requirements file
+COPY --chown=user requirements.txt .
 
 # Install pip and dependencies
 RUN pip install --upgrade pip setuptools wheel
-RUN pip install -e .
+RUN pip install -r requirements.txt
 
 # Copy application files
 COPY --chown=user app.py .
