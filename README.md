@@ -6,7 +6,7 @@ colorTo: indigo
 sdk: docker
 pinned: true
 app_port: 7860
-short_description: Multi-perspective research assistant with visualization capabilities
+short_description: Multi-perspective research assistant
 ---
 
 # InsightFlow AI: Multi-Perspective Research Assistant
