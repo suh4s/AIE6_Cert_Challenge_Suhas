@@ -1,4 +1,4 @@
-chainlit==2.2.1
+chainlit==2.5.5
 langchain-community==0.3.14
 langchain-openai==0.2.14
 langchain-core>=0.3.29,<0.4.0
@@ -15,4 +15,8 @@ faiss-cpu==1.10.0
 langchain-qdrant==0.2.0
 sentence-transformers==3.4.1
 ragas==0.2.10
-datasets==3.3.1 
+datasets==3.3.1
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.26.0 

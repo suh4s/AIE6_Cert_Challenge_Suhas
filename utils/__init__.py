@@ -6,3 +6,5 @@ Utilities for InsightFlow AI
 
 # Import persona system for easier access
 from utils.persona import PersonaFactory, PersonaReasoning
+
+# This file makes the utils directory a Python package

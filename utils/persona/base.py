@@ -2,122 +2,75 @@
 Base classes for the persona system.
 """
 
-import json
-import os
-from abc import ABC, abstractmethod
-from typing import Dict, List, Optional, Any
-from langchain_core.documents import Document
+from typing import Dict, Any, Optional
+from langchain_core.language_models.chat_models import BaseChatModel # For type hinting the LLM
+from langchain_core.messages import SystemMessage, HumanMessage
+import inspect
 
-class PersonaReasoning(ABC):
-    """Base class for all persona reasoning types"""
-    
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
-        self.id = config.get("id")
-        self.name = config.get("name")
-        self.traits = config.get("traits", [])
-        self.system_prompt = config.get("system_prompt", "")
-        self.examples = config.get("examples", [])
-        self.is_personality = not config.get("is_persona_type", True)
+class PersonaReasoning:
+    """Represents the reasoning capabilities of a persona."""
+    def __init__(self, persona_id: str, name: str, system_prompt: str, llm: BaseChatModel):
+        self.persona_id = persona_id
+        self.name = name
+        self.system_prompt = system_prompt
+        self.llm = llm # Store the actual LLM instance
+        print(f"DEBUG: PersonaReasoning for {self.name} initialized with LLM: {type(self.llm)}")
+
+    async def generate_perspective(self, query: str) -> str:
+        print(f"DEBUG: Generating perspective for {self.name} on query: '{query[:50]}...'")
+        messages = [
+            SystemMessage(content=self.system_prompt),
+            HumanMessage(content=query)
+        ]
         
-    @abstractmethod
-    def generate_perspective(self, query: str, context: Optional[List[Document]] = None) -> str:
-        """Generate a perspective response based on query and optional context"""
-        pass
+        response_content = ""
+        # Stream the response from the LLM
+        # If self.llm.astream(messages) is an AsyncMock, it might return a coroutine that yields the iterator.
+        stream_source = self.llm.astream(messages)
+        if inspect.iscoroutine(stream_source):
+            async_iterator = await stream_source
+        else:
+            async_iterator = stream_source
+            
+        async for chunk in async_iterator:
+            if chunk.content:
+                response_content += chunk.content
         
-    def get_system_prompt(self) -> str:
-        """Get the system prompt for this persona"""
-        return self.system_prompt
-        
-    def get_examples(self) -> List[str]:
-        """Get example responses for this persona"""
-        return self.examples
+        print(f"DEBUG: Perspective from {self.name}: '{response_content[:100]}...'")
+        return response_content
 
 class PersonaFactory:
-    """Factory for creating persona instances from config files"""
-    
-    def __init__(self, config_dir="persona_configs"):
+    """Factory for creating persona instances."""
+    def __init__(self, config_dir: str = "persona_configs"):
         self.config_dir = config_dir
-        self.configs = {}
-        self.load_configs()
-        
-    def load_configs(self):
-        """Load all JSON config files"""
-        if not os.path.exists(self.config_dir):
-            print(f"Warning: Config directory {self.config_dir} not found")
-            return
-            
-        for filename in os.listdir(self.config_dir):
-            if filename.endswith(".json"):
-                try:
-                    with open(os.path.join(self.config_dir, filename), "r") as f:
-                        config = json.load(f)
-                        if "id" in config:
-                            self.configs[config["id"]] = config
-                except Exception as e:
-                    print(f"Error loading config file {filename}: {e}")
-                        
-    def get_config(self, persona_id: str) -> Optional[Dict[str, Any]]:
-        """Get config for a persona"""
-        return self.configs.get(persona_id)
-    
-    def get_available_personas(self) -> List[Dict[str, Any]]:
-        """Get list of all available personas with basic info"""
-        result = []
-        for persona_id, config in self.configs.items():
-            result.append({
-                "id": persona_id,
-                "name": config.get("name", persona_id.capitalize()),
-                "description": config.get("description", ""),
-                "is_persona_type": config.get("is_persona_type", True),
-                "parent_type": config.get("parent_type", "")
-            })
-        return result
-        
-    def create_persona(self, persona_id: str) -> Optional[PersonaReasoning]:
-        """Create a persona instance based on ID"""
-        config = self.get_config(persona_id)
-        if not config:
-            return None
-            
-        # Lazily import implementations to avoid circular imports
-        try:
-            if config.get("is_persona_type", True):
-                # This is a persona type
-                persona_type = config.get("type")
-                if persona_type == "analytical":
-                    from .impl import AnalyticalReasoning
-                    return AnalyticalReasoning(config)
-                elif persona_type == "scientific":
-                    from .impl import ScientificReasoning
-                    return ScientificReasoning(config)
-                elif persona_type == "philosophical":
-                    from .impl import PhilosophicalReasoning
-                    return PhilosophicalReasoning(config)
-                elif persona_type == "factual":
-                    from .impl import FactualReasoning
-                    return FactualReasoning(config)
-                elif persona_type == "metaphorical":
-                    from .impl import MetaphoricalReasoning
-                    return MetaphoricalReasoning(config)
-                elif persona_type == "futuristic":
-                    from .impl import FuturisticReasoning
-                    return FuturisticReasoning(config)
-            else:
-                # This is a personality
-                parent_type = config.get("parent_type")
-                parent_config = self.get_config(parent_type)
-                if parent_config:
-                    if persona_id == "holmes":
-                        from .impl import HolmesReasoning
-                        return HolmesReasoning(config, parent_config)
-                    elif persona_id == "feynman":
-                        from .impl import FeynmanReasoning
-                        return FeynmanReasoning(config, parent_config)
-                    elif persona_id == "fry":
-                        from .impl import FryReasoning
-                        return FryReasoning(config, parent_config)
-        except Exception as e:
-            print(f"Error creating persona {persona_id}: {e}")
-                    
-        return None 
+        # Configs now store parameters, not direct LLM configs as LLMs are passed in
+        self.persona_configs: Dict[str, Dict[str, Any]] = self._load_persona_configs()
+        print(f"DEBUG: PersonaFactory initialized. Loaded {len(self.persona_configs)} persona base configs from {config_dir}.")
+
+    def _load_persona_configs(self) -> Dict[str, Dict[str, Any]]:
+        # These configs now only store name and system_prompt.
+        # The LLM to be used is determined in app.py and passed to create_persona.
+        return {
+            "analytical": {"name": "Analytical", "system_prompt": "You are an extremely analytical and methodical thinker. Break down the query into its fundamental components and analyze them logically."},
+            "scientific": {"name": "Scientific", "system_prompt": "You are a scientific researcher. Approach the query with empirical rigor, focusing on evidence, data, and established scientific principles."},
+            "philosophical": {"name": "Philosophical", "system_prompt": "You are a philosopher. Explore the query from multiple philosophical perspectives, considering its ethical, metaphysical, and epistemological implications."},
+            "factual": {"name": "Factual", "system_prompt": "You are a precise and factual expert. Provide concise, verified information relevant to the query, citing sources if possible (though you won't actually cite for now)."},
+            "metaphorical": {"name": "Metaphorical", "system_prompt": "You are a creative thinker who explains complex topics through vivid metaphors and analogies. Make the query understandable through comparisons."},
+            "futuristic": {"name": "Futuristic", "system_prompt": "You are a futurist. Analyze the query in the context of potential future trends, technologies, and societal changes."},
+        }
+
+    def create_persona(self, persona_id: str, llm_instance: BaseChatModel) -> Optional[PersonaReasoning]:
+        config = self.persona_configs.get(persona_id.lower())
+        if config and llm_instance:
+            return PersonaReasoning(
+                persona_id=persona_id.lower(),
+                name=config["name"],
+                system_prompt=config["system_prompt"],
+                llm=llm_instance # Pass the actual LLM instance
+            )
+        elif not llm_instance:
+            print(f"DEBUG Error: LLM instance not provided for persona {persona_id}")
+        return None
+
+    def get_available_personas(self) -> Dict[str, str]:
+        return {pid: conf["name"] for pid, conf in self.persona_configs.items()} 

@@ -1,0 +1,10 @@
+title: InsightFlow AI
+emoji: 🧠
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: true
+license: mit
+base_path: /
+fullWidth: false 
